@@ -1,0 +1,14 @@
+#プログラム登録用関数
+function(ADDPROGRAM name)
+    ### テスト用プログラムのビルド設定
+    add_executable(${name} ${name}.f90)
+
+    # モジュール参照
+    target_link_libraries(${name} lib)
+
+    # コンパイルオプション付与
+    SETCOMPILEOPTIONS(${name})
+
+endfunction(ADDPROGRAM)
+
+ADDPROGRAM(main)
