@@ -5,7 +5,7 @@ program main
     character(256) input_filename, output_filename
     type(stl_t) stl
 
-    input_filename = "data/test.stl"
+    input_filename = "data/airway_inlet_trans.stl"
     output_filename = "data/test_ascii.stl"
 
     call stl%read_binary_stl(trim(input_filename))

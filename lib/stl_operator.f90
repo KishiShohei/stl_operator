@@ -184,7 +184,7 @@ module stl_operator_m
         cnt = 2
         count_different_norm_vector = 1
         do dotID = cnt, self%num_triangles
-            if(abs(self%sorted_array(baseID)%value - self%sorted_array(dotID)%value) <= 1.d-6) then
+            if(abs(self%sorted_array(baseID)%value - self%sorted_array(dotID)%value) <= 1.d-2) then
                 cnt = cnt + 1
             else
                 baseID = cnt
@@ -210,7 +210,7 @@ module stl_operator_m
         cnt = 2
         cnt_diff_norm = 1
         do dotID = cnt, self%num_triangles
-            if(abs(self%sorted_array(baseID)%value - self%sorted_array(dotID)%value) <= 1.d-6) then
+            if(abs(self%sorted_array(baseID)%value - self%sorted_array(dotID)%value) <= 1.d-2) then
                 cnt = cnt + 1
 
                 faceID = self%sorted_array(dotID)%ID
@@ -285,7 +285,7 @@ module stl_operator_m
         open(newunit = n_unit, file = "data/box_list.txt", status = "replace")
             write(n_unit,'(*(g0:," "))') "x,y,z,lx,ly,lz"
             do groupID = 1, size(self%group_norm)
-                write(n_unit,'(*(g0:," "))') self%group_norm(groupID)%center, &
+                write(n_unit,'(*(g0:,","))') self%group_norm(groupID)%center, &
                 self%group_norm(groupID)%length
             end do
         close(n_unit)
