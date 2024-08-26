@@ -19,9 +19,8 @@ program main
     ! call stl%get_num_of_different_norm_vector()
     ! call stl%get_group_of_same_norm_vector()
 
-    !なんかセグメンテーション違反した．とりあえずコメントアウト
-    ! call stl%get_min_max_coordinate_of_group()
-    ! call stl%output_box_list()
-    ! call stl%output_box_vtk()
+    call stl%get_min_max_coordinate_of_group()
+    call stl%output_box_list()
+    call stl%output_box_vtk()
 
 end program

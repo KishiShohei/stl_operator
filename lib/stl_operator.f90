@@ -51,7 +51,7 @@ module stl_operator_m
         type(re_merge_triangle_t), allocatable :: re_merge_triangles(:)
         type(append_t), allocatable :: append_IDs(:)
         type(re_append_t), allocatable :: re_append_IDs(:)
-        integer num_triangles, cnt_diff_norm
+        integer num_triangles, cnt_diff_norm, num_groups
         double precision basic_vector(3)
         character(80) header
 
@@ -385,7 +385,8 @@ module stl_operator_m
                 count = count + 1
             end if
         end do
-        print*, "num of face group = ", count - 1
+        self%num_groups = count - 1
+        print*, "num of face group = ", self%num_groups
 
         count = 1
         open(newunit = n_unit, file = "data/triangle_group_coordinate.csv", status = "replace")
@@ -519,34 +520,30 @@ module stl_operator_m
     subroutine get_min_max_coordinate_of_group(self)
         class(stl_t) self
         type(coordinate_t) node(5)
-        integer groupID, dotID, faceID, n_unit, baseID
+        integer groupID, dotID, faceID, n_unit, vertexID, cnt, lim_vertexID
         double precision max_coord(3), min_coord(3)
 
-        do groupID = 1, size(self%group_norm)
-            ! グループ内の適当な座標で最大,最小座標を初期化
-            baseID = self%group_norm(groupID)%faceIDs(1)
-            min_coord(:) = self%triangle(baseID)%vertexID(1)%coordinate
-            max_coord(:) = self%triangle(baseID)%vertexID(1)%coordinate
+        allocate(self%group_norm(self%num_groups))
 
-            do dotID = 1, size(self%group_norm(groupID)%faceIDs)
-                faceID = self%group_norm(groupID)%faceIDs(dotID)
+        cnt = 1
+        do faceID = 1, size(self%merge_triangles)
+            if(self%append_IDs(faceID)%vertexID - 1 > 0) then
+                lim_vertexID = self%append_IDs(faceID)%vertexID - 1
+                self%group_norm(cnt)%max_coordinate(1) = maxval(self%merge_triangles(faceID)%vertices(1:lim_vertexID)%coordinate(1))
+                self%group_norm(cnt)%max_coordinate(2) = maxval(self%merge_triangles(faceID)%vertices(1:lim_vertexID)%coordinate(2))
+                self%group_norm(cnt)%max_coordinate(3) = maxval(self%merge_triangles(faceID)%vertices(1:lim_vertexID)%coordinate(3))
+                self%group_norm(cnt)%min_coordinate(1) = minval(self%merge_triangles(faceID)%vertices(1:lim_vertexID)%coordinate(1))
+                self%group_norm(cnt)%min_coordinate(2) = minval(self%merge_triangles(faceID)%vertices(1:lim_vertexID)%coordinate(2))
+                self%group_norm(cnt)%min_coordinate(3) = minval(self%merge_triangles(faceID)%vertices(1:lim_vertexID)%coordinate(3))
 
-                node(1)%coordinate = self%triangle(faceID)%vertexID(1)%coordinate
-                node(2)%coordinate = self%triangle(faceID)%vertexID(2)%coordinate
-                node(3)%coordinate = self%triangle(faceID)%vertexID(3)%coordinate
-                node(4)%coordinate = min_coord
-                node(5)%coordinate = max_coord
+                max_coord = self%group_norm(cnt)%max_coordinate
+                min_coord = self%group_norm(cnt)%min_coordinate
+                self%group_norm(cnt)%center = (max_coord + min_coord)/2.d0
+                self%group_norm(cnt)%length = max_coord - min_coord
+                self%group_norm(cnt)%half_length = self%group_norm(cnt)%length /2.d0
 
-                call get_min_max_coord(node, min_coord, max_coord)
-                
-            end do
-
-            self%group_norm(groupID)%max_coordinate = max_coord
-            self%group_norm(groupID)%min_coordinate = min_coord
-            self%group_norm(groupID)%center = (max_coord + min_coord)/2.d0
-            self%group_norm(groupID)%length = max_coord - min_coord
-            self%group_norm(groupID)%half_length = self%group_norm(groupID)%length /2.d0
-
+                cnt = cnt + 1
+            end if
         end do
 
         open(newunit = n_unit, file = "data/min_max_coord.txt", status = "replace")
