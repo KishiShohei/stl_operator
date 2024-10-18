@@ -639,8 +639,8 @@ module stl_operator_m
             write(n_unit,'(*(g0:," "))') "x,y,z,lx,ly,lz"
             do fileID = 1, size(array)
                 do groupID = 1, size(self%processor(fileID)%group_norm)
-                    write(n_unit,'(*(g0:,","))') self%processor(fileID)%group_norm(groupID)%center, &
-                    self%processor(fileID)%group_norm(groupID)%length
+                    write(n_unit,'(*(g0:,","))') self%processor(fileID)%group_norm(groupID)%center/1000, &
+                    self%processor(fileID)%group_norm(groupID)%length/1000
                 end do
             end do
         close(n_unit)
