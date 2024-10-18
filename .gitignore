@@ -2,3 +2,4 @@
 build/
 *.stl
 *.vscode
+get_center_coord.ipynb
