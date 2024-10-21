@@ -632,15 +632,18 @@ module stl_operator_m
 
     subroutine output_box_list(self,array)
         class(stl_t) self
-        integer n_unit, groupID, fileID
+        integer n_unit, groupID, fileID, scale_factor
         character(*), allocatable, intent(in) :: array(:)
+
+        !stlのスケールがmm設定の場合,csvではmで表示する
+        scale_factor = 1000
 
         open(newunit = n_unit, file = "data/box_list.csv", status = "replace")
             write(n_unit,'(*(g0:," "))') "x,y,z,lx,ly,lz"
             do fileID = 1, size(array)
                 do groupID = 1, size(self%processor(fileID)%group_norm)
                     write(n_unit,'(*(g0:,","))') self%processor(fileID)%group_norm(groupID)%center/1000, &
-                    self%processor(fileID)%group_norm(groupID)%length/1000
+                    self%processor(fileID)%group_norm(groupID)%length/scale_factor
                 end do
             end do
         close(n_unit)
