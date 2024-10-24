@@ -314,31 +314,29 @@ module stl_operator_m
     subroutine make_triangle_groups(self, fileID, output_fname)
         implicit none
         class(stl_t), intent(inout) :: self
-        integer faceID, vertexID, mergevertexID, n_unit, appendfaceID, new_size, &
+        integer faceID, vertexID, mergevertexID, n_unit, appendfaceID, &
         appendvertexID_1, appendvertexID_2, i, mergevertexID_1, mergevertexID_2, mergefaceID, &
-        test_faceID, test_vertexID, re_appendvertexID, re_mergevertexID, del_vertexID, dummyID,&
+        test_faceID, test_vertexID, re_appendvertexID, re_mergevertexID,&
         update_appendID, update_vertexID, update_faceID, count, logical_test_ID
         real index_value, coordinate(3), merge_coordinate(3), test_coordinate(3), &
-        re_appendcoordinate(3), replace_coordinate(3)
+        re_appendcoordinate(3), replace_coordinate(3), threshold
         logical, allocatable :: classification_not_completed(:)
-        logical all_false
+        logical all_false, is_same
         character(100) filename
         integer, intent(in) :: fileID
         character(*), allocatable, intent(in) :: output_fname(:)
 
-        allocate(self%processor(fileID)%merge_triangles(200)) !決め打ち．気管支末端部の面の数より多ければ良い
-        allocate(self%processor(fileID)%append_IDs(200)) !上の数字と同じにする
+        allocate(self%processor(fileID)%merge_triangles(400)) !決め打ち．気管支末端部の面の数より多ければ良い
+        allocate(self%processor(fileID)%append_IDs(400)) !上の数字と同じにする
 
         !初期配列値
         do faceID = 1, size(self%processor(fileID)%merge_triangles)
             do vertexID = 1, size(self%processor(fileID)%merge_triangles(faceID)%vertices)
                 self%processor(fileID)%merge_triangles(faceID)%vertices(vertexID)%coordinate = (/-99,-99,-99/) !ダミー値-99を代入
-                self%processor(fileID)%merge_triangles(1)%vertices(1)%coordinate &
-                = self%processor(fileID)%triangle(1)%vertexID(1)%coordinate
-                self%processor(fileID)%merge_triangles(1)%vertices(2)%coordinate &
-                = self%processor(fileID)%triangle(1)%vertexID(2)%coordinate
-                self%processor(fileID)%merge_triangles(1)%vertices(3)%coordinate &
-                = self%processor(fileID)%triangle(1)%vertexID(3)%coordinate
+                do i = 1, 3
+                    self%processor(fileID)%merge_triangles(1)%vertices(i)%coordinate &
+                    = self%processor(fileID)%triangle(1)%vertexID(i)%coordinate
+                end do
             end do
         end do
 
@@ -347,17 +345,14 @@ module stl_operator_m
         end do
 
         appendfaceID = 2
+        threshold = 0.6
         do faceID =1, self%processor(fileID)%num_triangles
             print*, "triangleID : ", faceID
             mergeloop:do mergefaceID = 1, appendfaceID - 1
                 do mergevertexID = 1, size(self%processor(fileID)%merge_triangles(faceID)%vertices)
                     do vertexID = 1, 3
-                        coordinate = self%processor(fileID)%triangle(faceID)%vertexID(vertexID)%coordinate
-                        merge_coordinate &
-                        = self%processor(fileID)%merge_triangles(mergefaceID)%vertices(mergevertexID)%coordinate
-                        index_value = norm2(coordinate - merge_coordinate)
-                        ! print*, index_value
-                        if(index_value <= 0.6) then !一致する座標があるとき
+                        is_same = coordinates_are_same(self, fileID, faceID, mergefaceID, vertexID, mergevertexID, threshold)
+                        if(is_same) then
                             ! print*, "same coordinate"
                             ! print*, "mergefaceID = ", mergefaceID
                             appendvertexID_1 = self%processor(fileID)%append_IDs(mergefaceID)%vertexID
@@ -394,8 +389,8 @@ module stl_operator_m
         end do
 
         !全て格納した後，かぶりがないか再度チェック
-        allocate(self%processor(fileID)%re_merge_triangles(200)) !merge_trianglesと同じ数
-        allocate(self%processor(fileID)%re_append_IDs(200)) !append_IDsと同じ数
+        allocate(self%processor(fileID)%re_merge_triangles(400)) !merge_trianglesと同じ数
+        allocate(self%processor(fileID)%re_append_IDs(400)) !append_IDsと同じ数
 
         do faceID = 1, size(self%processor(fileID)%merge_triangles)
             do update_vertexID = 1, size(self%processor(fileID)%merge_triangles(faceID)%vertices)
@@ -433,77 +428,35 @@ module stl_operator_m
                                 if(index_value == 0) then
                                     !検出されたvertexIDが3で割れるかどうかの場合分け
                                     if(mod(vertexID, 3) /= 0) then
-                                        re_appendvertexID = self%processor(fileID)%re_append_IDs(test_faceID)%vertexID
-                                        do re_mergevertexID = 3*int(vertexID/3)+1, 3*int(vertexID/3 + 1)
-                                            !一致groupにtriangleの座標を追加
-                                            re_appendcoordinate &
-                                            = self%processor(fileID)%merge_triangles(faceID)%vertices(re_mergevertexID)%coordinate
-                                            self%processor(fileID)%re_merge_triangles(test_faceID)&
-                                            %vertices(re_appendvertexID)%coordinate &
-                                            = re_appendcoordinate
-                                            self%processor(fileID)%re_append_IDs(test_faceID)%vertexID &
-                                            = self%processor(fileID)%re_append_IDs(test_faceID)%vertexID + 1
-                                            re_appendvertexID = self%processor(fileID)%re_append_IDs(test_faceID)%vertexID
-                                        end do
-                                        !元のgroupから追加したtriangleの座標を削除(置き換え)
-                                        do del_vertexID = 3*int(vertexID/3)+1, &
-                                        self%processor(fileID)%append_IDs(faceID)%vertexID - 4
-                                            replace_coordinate &
-                                            = self%processor(fileID)%merge_triangles(faceID)%vertices(del_vertexID + 3)%coordinate
-                                            self%processor(fileID)%re_merge_triangles(faceID)&
-                                            %vertices(del_vertexID)%coordinate = replace_coordinate
-                                        end do
-                                        !ダミー値を増やす&append_IDsの更新
-                                        do dummyID = self%processor(fileID)%append_IDs(faceID)%vertexID - 3, &
-                                        self%processor(fileID)%append_IDs(faceID)%vertexID - 1
-                                            self%processor(fileID)%re_merge_triangles(faceID)%vertices(dummyID)%coordinate &
-                                            = (/-99,-99,-99/)
-                                        end do
+                                        call update_coordinates(self, fileID, test_faceID, faceID, &
+                                        calc_start_vertexID(vertexID), calc_end_vertexID(vertexID))
+                                        !Delete and replace vertex coordinates
+                                        call delete_coordinates(self, fileID, faceID, &
+                                                                calc_start_vertexID(vertexID), &
+                                                                self%processor(fileID)%append_IDs(faceID)%vertexID - 4)
+                                        !Update dummy values
+                                        call update_dummy(self, fileID, faceID, &
+                                                        self%processor(fileID)%append_IDs(faceID)%vertexID - 3, &
+                                                        self%processor(fileID)%append_IDs(faceID)%vertexID - 1)
                                         self%processor(fileID)%re_append_IDs(faceID)%vertexID &
                                         = self%processor(fileID)%append_IDs(faceID)%vertexID - 3
                                     else
-                                        re_appendvertexID = self%processor(fileID)%re_append_IDs(test_faceID)%vertexID
-                                        do re_mergevertexID = 3*int(vertexID/3)-2, 3*int(vertexID/3)
-                                            !一致groupにtriangleの座標を追加
-                                            re_appendcoordinate &
-                                            = self%processor(fileID)%merge_triangles(faceID)%vertices(re_mergevertexID)%coordinate
-                                            self%processor(fileID)%re_merge_triangles(test_faceID)&
-                                            %vertices(re_appendvertexID)%coordinate &
-                                            = re_appendcoordinate
-                                            self%processor(fileID)%re_append_IDs(test_faceID)%vertexID &
-                                            = self%processor(fileID)%re_append_IDs(test_faceID)%vertexID + 1
-                                            re_appendvertexID = self%processor(fileID)%re_append_IDs(test_faceID)%vertexID
-                                        end do
-                                        !元のgroupから追加したtriangleの座標を削除
-                                        do del_vertexID = 3*int(vertexID/3)-2, &
-                                        self%processor(fileID)%append_IDs(faceID)%vertexID - 4
-                                            replace_coordinate &
-                                            = self%processor(fileID)%merge_triangles(faceID)%vertices(del_vertexID + 3)%coordinate
-                                            self%processor(fileID)%re_merge_triangles(faceID)%vertices(del_vertexID)%coordinate &
-                                            = replace_coordinate
-                                        end do
-                                        !ダミー値を増やす&append_IDsの更新
-                                        do dummyID = self%processor(fileID)%append_IDs(faceID)%vertexID - 3, &
-                                        self%processor(fileID)%append_IDs(faceID)%vertexID - 1
-                                            self%processor(fileID)%re_merge_triangles(faceID)%vertices(dummyID)%coordinate &
-                                            = (/-99,-99,-99/)
-                                            self%processor(fileID)%re_append_IDs(faceID)%vertexID &
-                                            = self%processor(fileID)%append_IDs(faceID)%vertexID - 3
-                                        end do
+                                        re_appendvertexID = self%processor(fileID)%re_append_IDs(faceID)%vertexID
+                                        call update_coordinates(self, fileID, test_faceID, faceID, &
+                                                                calc_start_vertexID(vertexID), calc_end_vertexID(vertexID))
+                                        !Delete and replace vertex coordinates
+                                        call delete_coordinates(self, fileID, faceID, &
+                                                                calc_start_vertexID(vertexID), &
+                                                                self%processor(fileID)%append_IDs(faceID)%vertexID - 4)
+                                        !Update dummy values
+                                        call update_dummy(self, fileID, faceID, &
+                                                          self%processor(fileID)%append_IDs(faceID)%vertexID - 3, &
+                                                          self%processor(fileID)%append_IDs(faceID)%vertexID - 1)
+                                        self%processor(fileID)%re_append_IDs(faceID)%vertexID = &
+                                        self%processor(fileID)%append_IDs(faceID)%vertexID - 3
                                     end if
-                                    !元配列の更新
-                                    do update_faceID = 1, size(self%processor(fileID)%merge_triangles)
-                                        do update_vertexID = 1, size(self%processor(fileID)%merge_triangles(faceID)%vertices)
-                                            self%processor(fileID)%merge_triangles(update_faceID)%&
-                                            vertices(update_vertexID)%coordinate&
-                                            = self%processor(fileID)%re_merge_triangles(update_faceID)%&
-                                            vertices(update_vertexID)%coordinate
-                                        end do
-                                    end do
-                                    do update_appendID = 1, size(self%processor(fileID)%append_IDs)
-                                        self%processor(fileID)%append_IDs(update_appendID)%vertexID &
-                                        = self%processor(fileID)%re_append_IDs(update_appendID)%vertexID
-                                    end do
+                                    !Update the mesh data
+                                    call update_mesh(self, fileID)
                                 end if
                             end do
                         end do
@@ -561,6 +514,111 @@ module stl_operator_m
                 end do
             close(n_unit)
         end if
+    end subroutine
+
+    real function calculate_distance(coord1, coord2)
+        implicit none
+        real coord1(3), coord2(3)
+
+        calculate_distance = norm2(coord1 - coord2)
+    end function
+
+    logical function coordinates_are_same(self, fileID, faceID, mergefaceID, vertexID, mergevertexID, threshold)
+        implicit none
+        class(stl_t) self
+        integer, intent(in) :: fileID, faceID, mergefaceID, vertexID, mergevertexID
+        real, intent(in) :: threshold
+        real coordinate(3), merge_coordinate(3), index_value
+
+        coordinate = self%processor(fileID)%triangle(faceID)%vertexID(vertexID)%coordinate
+        merge_coordinate = self%processor(fileID)%merge_triangles(mergefaceID)%vertices(mergevertexID)%coordinate
+        index_value = calculate_distance(coordinate, merge_coordinate)
+
+        coordinates_are_same = (index_value <= threshold)
+end function
+
+    integer function calc_start_vertexID(vertexID)
+        implicit none
+        integer, intent(in) :: vertexID
+
+        if(mod(vertexID, 3) /= 0) then
+            calc_start_vertexID = 3*int(vertexID / 3) + 1
+        else
+            calc_start_vertexID = 3*int(vertexID / 3) - 2
+        end if
+    end function
+
+    integer function calc_end_vertexID(vertexID)
+        implicit none
+        integer, intent(in) :: vertexID
+
+        if(mod(vertexID, 3) /= 0) then
+            calc_end_vertexID = 3*int(vertexID / 3 + 1)
+        else
+            calc_end_vertexID = 3*int(vertexID / 3)
+        end if
+    end function
+
+    subroutine update_coordinates(self, fileID, test_faceID, faceID, re_mergevertexID_start, re_mergevertexID_end)
+        implicit none
+        class(stl_t) self
+        integer, intent(in) :: fileID, test_faceID, faceID, re_mergevertexID_start, re_mergevertexID_end
+        real re_appendcoordinate(3)
+        integer re_mergevertexID,  re_appendvertexID
+
+        re_appendvertexID = self%processor(fileID)%re_append_IDs(test_faceID)%vertexID
+        do re_mergevertexID = re_mergevertexID_start, re_mergevertexID_end
+            re_appendcoordinate = self%processor(fileID)%merge_triangles(faceID)%vertices(re_mergevertexID)%coordinate
+            self%processor(fileID)%re_merge_triangles(test_faceID)%vertices(re_appendvertexID)%coordinate = re_appendcoordinate
+            self%processor(fileID)%re_append_IDs(test_faceID)%vertexID &
+            = self%processor(fileID)%re_append_IDs(test_faceID)%vertexID + 1
+            re_appendvertexID = self%processor(fileID)%re_append_IDs(test_faceID)%vertexID
+        end do
+    end subroutine
+
+    subroutine delete_coordinates(self, fileID, faceID, del_vertexID_start, del_vertexID_end)
+        implicit none
+        class(stl_t) self
+        integer, intent(in) :: fileID, faceID, del_vertexID_start, del_vertexID_end
+        real replace_coordinate(3)
+        integer del_vertexID
+
+        do del_vertexID = del_vertexID_start, del_vertexID_end
+            replace_coordinate = self%processor(fileID)%merge_triangles(faceID)%vertices(del_vertexID + 3)%coordinate
+            self%processor(fileID)%re_merge_triangles(faceID)%vertices(del_vertexID)%coordinate = replace_coordinate
+        end do
+    end subroutine
+
+    subroutine update_dummy(self, fileID, faceID, dummyID_start, dummyID_end)
+        implicit none
+        class(stl_t) self
+        integer, intent(in) :: fileID, faceID, dummyID_start, dummyID_end
+        integer dummyID
+
+        do dummyID = dummyID_start, dummyID_end
+            self%processor(fileID)%re_merge_triangles(faceID)%vertices(dummyID)%coordinate = (/-99,-99,-99/)
+        end do
+    end subroutine
+
+    subroutine update_mesh(self, fileID)
+        implicit none
+        class(stl_t) self
+        integer, intent(in) :: fileID
+        integer update_faceID, update_vertexID, update_appendID
+
+        !Update merge_triangles
+        do update_faceID = 1, size(self%processor(fileID)%merge_triangles)
+            do update_vertexID = 1, size(self%processor(fileID)%merge_triangles(update_faceID)%vertices)
+                self%processor(fileID)%merge_triangles(update_faceID)%vertices(update_vertexID)%coordinate &
+                = self%processor(fileID)%re_merge_triangles(update_faceID)%vertices(update_vertexID)%coordinate
+            end do
+        end do
+
+        !Update append_IDs
+        do update_appendID = 1, size(self%processor(fileID)%append_IDs)
+            self%processor(fileID)%append_IDs(update_appendID)%vertexID &
+            = self%processor(fileID)%re_append_IDs(update_appendID)%vertexID
+        end do
     end subroutine
 
     subroutine output_csv_triangle_group(self, fileID)
