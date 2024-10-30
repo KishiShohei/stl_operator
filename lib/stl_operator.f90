@@ -191,22 +191,6 @@ module stl_operator_m
             end select
     end subroutine
 
-    subroutine append(array, new_value)
-        real, allocatable :: array(:), hold_array(:)
-        real new_value
-        integer current_size
-
-        current_size = size(array)
-        allocate(hold_array(current_size))
-        hold_array = array !一時的に値を保持
-
-        deallocate(array)
-        allocate(array(current_size + 1))
-        array(1:current_size) = hold_array
-        array(current_size + 1) = new_value
-        deallocate(hold_array)
-    end subroutine
-
     subroutine read_binary_stl(self, filename, fileID)
         class(stl_t) self
         character(*), intent(in) :: filename
